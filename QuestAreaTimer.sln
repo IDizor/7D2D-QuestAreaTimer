@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31829.152
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuestAreaTimer", "QuestAreaTimer\QuestAreaTimer.csproj", "{BF12EDB9-70B4-4270-9823-BD91C038E51B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BF12EDB9-70B4-4270-9823-BD91C038E51B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF12EDB9-70B4-4270-9823-BD91C038E51B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF12EDB9-70B4-4270-9823-BD91C038E51B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF12EDB9-70B4-4270-9823-BD91C038E51B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5A27241D-57B5-467B-BDDE-A4C8CC57E96C}
+	EndGlobalSection
+EndGlobal
