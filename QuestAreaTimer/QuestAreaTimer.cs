@@ -14,13 +14,13 @@ public class QuestAreaTimer : IModApi
     private const float NoPoiTimeout = 10.1f;
     private const float NoPoiTimeoutHot = 5f;
 
+    private static BaseObjective Objective = null;
     private static float Timout = PoiTimeout;
     private static float TimoutHot = PoiTimeoutHot;
     private static float? LeaveTime = null;
     private static Timer RefreshTimer = null;
     private static object UpdateUILock = new object();
-    private static MethodInfo ObjectivePOIStayWithin_GetPosition = typeof(ObjectivePOIStayWithin).GetMethod("GetPosition", BindingFlags.NonPublic | BindingFlags.Instance);
-
+    
     /// <summary>
     /// Mod initialization.
     /// </summary>
@@ -31,7 +31,7 @@ public class QuestAreaTimer : IModApi
         var harmony = new Harmony(GetType().ToString());
         harmony.PatchAll(Assembly.GetExecutingAssembly());
     }
-
+    
     /// <summary>
     /// The Harmony patch for the method <see cref="ObjectivePOIStayWithin.UpdateState_Update"/>.
     /// </summary>
@@ -40,60 +40,51 @@ public class QuestAreaTimer : IModApi
     public class ObjectivePOIStayWithin_UpdateState_Update
     {
         /// <summary>
-        /// The new method to execute instead of the original method <see cref="ObjectivePOIStayWithin.UpdateState_Update"/>.
-        /// The same code as in the original method, but creates a return-to-the-POI-timer instead of an instant quest failure.
+        /// The method to execute before the original method <see cref="ObjectivePOIStayWithin.UpdateState_Update"/>.
+        /// Keeps current objective in a static variable. It might be used in the <see cref="Quest.MarkFailed"/> method prefix.
         /// </summary>
-        public static bool Prefix(ObjectivePOIStayWithin __instance, ref bool ___positionSet, ref Rect ___outerRect, ref Rect ___innerRect)
+        public static bool Prefix(ObjectivePOIStayWithin __instance)
         {
-            if (!___positionSet)
+            Objective = __instance;
+            if (Objective.ObjectiveState != BaseObjective.ObjectiveStates.Failed)
             {
-                ObjectivePOIStayWithin_GetPosition.Invoke(__instance, null);
-                ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-                return false;
+                ClearLeaveTime(__instance.OwnerQuest.OwnerJournal?.OwnerPlayer);
             }
-            Vector3 vector = __instance.OwnerQuest.OwnerJournal.OwnerPlayer.position;
-            vector.y = vector.z;
-            if (!___outerRect.Contains(vector))
+            return true;
+        }
+
+        /// <summary>
+        /// The new method to execute after the original method <see cref="ObjectivePOIStayWithin.UpdateState_Update"/>.
+        /// Needed to hide timer faster, when player returned back to the POI.
+        /// </summary>
+        public static void Postfix(ObjectivePOIStayWithin __instance)
+        {
+            if (__instance.ObjectiveState != BaseObjective.ObjectiveStates.Failed)
             {
-                var isCorrectState = __instance.OwnerQuest.CurrentState == Quest.QuestState.InProgress
-                    && !__instance.OwnerQuest.OwnerJournal.OwnerPlayer.IsDead();
-                if (LeaveTime == null && isCorrectState)
-                {
-                    Timout = PoiTimeout;
-                    TimoutHot = PoiTimeoutHot;
-                    SetLeaveTime();
-                    CreateRefreshTimer(90, () => {
-                        if (LeaveTime.HasValue)
-                        {
-                            UpdateUI(__instance?.OwnerQuest?.OwnerJournal?.OwnerPlayer);
-                        }
-                        else
-                        {
-                            RefreshTimer?.Stop();
-                        }
-                    });
-                }
-                else
-                {
-                    if (!isCorrectState || Time.time - LeaveTime.Value > Timout)
-                    {
-                        __instance.Complete = false;
-                        __instance.ObjectiveState = BaseObjective.ObjectiveStates.Failed;
-                        ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-                        __instance.OwnerQuest.MarkFailed();
-                    }
-                }
-                return false;
+                ClearLeaveTime(__instance.OwnerQuest.OwnerJournal?.OwnerPlayer);
             }
-            if (___innerRect.Contains(vector))
+        }
+    }
+
+    /// <summary>
+    /// The Harmony patch for the method <see cref="ObjectiveStayWithin.Update"/>.
+    /// </summary>
+    [HarmonyPatch(typeof(ObjectiveStayWithin))]
+    [HarmonyPatch("Update")]
+    public class ObjectiveStayWithin_Update
+    {
+        /// <summary>
+        /// The method to execute before the original method <see cref="ObjectiveStayWithin.Update"/>.
+        /// Keeps current objective in a static variable. It might be used in the <see cref="Quest.MarkFailed"/> method prefix.
+        /// </summary>
+        public static bool Prefix(ObjectiveStayWithin __instance)
+        {
+            Objective = __instance;
+            if (Objective.ObjectiveState != BaseObjective.ObjectiveStates.Failed)
             {
-                __instance.ObjectiveState = BaseObjective.ObjectiveStates.Complete;
-                ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-                return false;
+                ClearLeaveTime(__instance.OwnerQuest.OwnerJournal?.OwnerPlayer);
             }
-            __instance.ObjectiveState = BaseObjective.ObjectiveStates.Warning;
-            ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-            return false;
+            return true;
         }
     }
 
@@ -118,81 +109,57 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// The Harmony patch for the method <see cref="ObjectiveStayWithin.Update"/>.
+    /// The Harmony patch for the method <see cref="Quest.MarkFailed"/>.
     /// </summary>
-    [HarmonyPatch(typeof(ObjectiveStayWithin))]
-    [HarmonyPatch("Update")]
-    public class ObjectiveStayWithin_Update
+    [HarmonyPatch(typeof(Quest))]
+    [HarmonyPatch("MarkFailed")]
+    public class Quest_MarkFailed
     {
         /// <summary>
-        /// The new method to execute instead of the original method <see cref="ObjectiveStayWithin.Update"/>.
-        /// The same code as in the original method, but creates a return-to-the-area-timer instead of an instant quest failure.
+        /// The method to execute before of the original method <see cref="Quest.MarkFailed"/>.
+        /// Creates a return-to-the-quest-area-timer instead of an instant quest failure.
         /// </summary>
-        public static bool Prefix(ObjectiveStayWithin __instance, ref bool ___positionSetup, ref float ___maxDistance, ref float ___currentDistance)
+        public static bool Prefix(Quest __instance)
         {
-            Vector3 position = __instance.OwnerQuest.OwnerJournal.OwnerPlayer.position;
-            Vector3 position2 = __instance.OwnerQuest.Position;
-            if (!___positionSetup)
+            var stackFrame = new System.Diagnostics.StackFrame(2);
+            var calledClass = stackFrame.GetMethod().DeclaringType.Name;
+            if (calledClass == nameof(ObjectivePOIStayWithin) || calledClass == nameof(ObjectiveStayWithin))
             {
-                if (__instance.OwnerQuest.GetPositionData(out position2, Quest.PositionDataTypes.Location))
+                var isCorrectState = Objective != null
+                    && __instance.CurrentState == Quest.QuestState.InProgress
+                    && __instance.OwnerJournal?.OwnerPlayer?.IsDead() == false;
+
+                if (isCorrectState && LeaveTime == null && Objective.ObjectiveState == BaseObjective.ObjectiveStates.Failed)
                 {
-                    __instance.OwnerQuest.Position = position2;
-                    QuestEventManager.Current.QuestBounds = new Rect(position2.x, position2.z, ___maxDistance, ___maxDistance);
-                    ___positionSetup = true;
-                }
-                else if (__instance.OwnerQuest.GetPositionData(out position2, Quest.PositionDataTypes.POIPosition))
-                {
-                    __instance.OwnerQuest.Position = position2;
-                    QuestEventManager.Current.QuestBounds = new Rect(position2.x, position2.z, ___maxDistance, ___maxDistance);
-                    ___positionSetup = true;
-                }
-            }
-            position.y = 0f;
-            position2.y = 0f;
-            ___currentDistance = (position - position2).magnitude;
-            float num = ___currentDistance / ___maxDistance;
-            if (num > 1f)
-            {
-                var isCorrectState = __instance.OwnerQuest.CurrentState == Quest.QuestState.InProgress
-                    && !__instance.OwnerQuest.OwnerJournal.OwnerPlayer.IsDead();
-                if (LeaveTime == null && isCorrectState)
-                {
-                    Timout = NoPoiTimeout;
-                    TimoutHot = NoPoiTimeoutHot;
+                    var isPoiObjective = calledClass == nameof(ObjectivePOIStayWithin);
+                    Timout = isPoiObjective ? PoiTimeout : NoPoiTimeout;
+                    TimoutHot = isPoiObjective ? PoiTimeoutHot : NoPoiTimeoutHot;
                     SetLeaveTime();
-                    CreateRefreshTimer(90, () => {
-                        if (LeaveTime.HasValue)
-                        {
-                            UpdateUI(__instance?.OwnerQuest?.OwnerJournal?.OwnerPlayer);
-                        }
-                        else
+                    CreateRefreshTimer(90, () =>
+                    {
+                        if (LeaveTime == null)
                         {
                             RefreshTimer?.Stop();
                         }
+                        UpdateUI(__instance.OwnerJournal?.OwnerPlayer);
                     });
+
+                    return false;
                 }
-                else
+                if (LeaveTime.HasValue)
                 {
                     if (!isCorrectState || Time.time - LeaveTime.Value > Timout)
                     {
-                        __instance.Complete = false;
-                        __instance.ObjectiveState = BaseObjective.ObjectiveStates.Failed;
-                        ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-                        __instance.OwnerQuest.MarkFailed();
+                        ClearLeaveTime(__instance.OwnerJournal?.OwnerPlayer);
+                        Objective = null;
+                        return true;
                     }
-                }
 
-                return false;
+                    return false;
+                }
             }
-            if (num > 0.75f)
-            {
-                __instance.ObjectiveState = BaseObjective.ObjectiveStates.Warning;
-                ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-                return false;
-            }
-            __instance.ObjectiveState = BaseObjective.ObjectiveStates.Complete;
-            ClearLeaveTime(__instance.OwnerQuest.OwnerJournal.OwnerPlayer);
-            return false;
+
+            return true;
         }
     }
 
@@ -206,18 +173,19 @@ public class QuestAreaTimer : IModApi
         private const string DefaultColor = "255,255,0";
         private const string HotColor = "255,30,30";
         private static string TimeColor = DefaultColor;
+        private static float TimeLeft = 0;
 
         /// <summary>
         /// The additional code to execute before the original method <see cref="XUiC_QuestTrackerWindow.GetBindingValue"/>.
         /// Populates binding values for UI.
         /// </summary>
-        public static bool Prefix(ref string value, string bindingName, ref bool __result, XUiC_QuestTrackerObjectiveList ___objectiveList)
+        public static bool Prefix(ref string value, string bindingName, /*XUiC_QuestTrackerWindow __instance,*/ ref bool __result)
         {
             if (bindingName != null)
             {
                 if (bindingName == "staywithinwarning")
                 {
-                    value = LeaveTime.HasValue.ToString();
+                    value = (LeaveTime.HasValue && TimeLeft > 0).ToString();
                     __result = true;
                     return false;
                 }
@@ -227,10 +195,15 @@ public class QuestAreaTimer : IModApi
 
                     if (LeaveTime.HasValue)
                     {
-                        var timeLeft = Timout - (Time.time - LeaveTime.Value);
-                        timeLeft = Math.Max(timeLeft, 0);
-                        TimeColor = timeLeft > TimoutHot ? DefaultColor : HotColor;
-                        value = timeLeft.ToString("0.0");
+                        var hadTime = TimeLeft > 0;
+                        TimeLeft = Math.Max(Timout - (Time.time - LeaveTime.Value), 0);
+                        TimeColor = TimeLeft > TimoutHot ? DefaultColor : HotColor;
+                        value = TimeLeft.ToString("0.0");
+
+                        if (hadTime && TimeLeft == 0 && Objective != null && Objective is ObjectivePOIStayWithin)
+                        {
+                            typeof(ObjectivePOIStayWithin).GetMethod("UpdateState_Update", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(Objective, null);
+                        }
                     }
 
                     __result = true;
