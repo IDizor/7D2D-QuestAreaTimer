@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using System;
+using System.IO;
 using System.Reflection;
 using System.Timers;
 using UnityEngine;
@@ -9,10 +10,11 @@ using UnityEngine;
 /// </summary>
 public class QuestAreaTimer : IModApi
 {
-    private const float PoiTimeout = 30.1f;
-    private const float PoiTimeoutHot = 10f;
-    private const float NoPoiTimeout = 10.1f;
-    private const float NoPoiTimeoutHot = 5f;
+    private static float PoiTimeout = 10f;
+    private static float PoiTimeoutHot = 5f;
+    private static float BurriedSuppliesTimeout = 10f;
+    private static float BurriedSuppliesTimeoutHot = 5f;
+    private static float PoiOutZoneMultiplier = 0.33f;
 
     private static BaseObjective Objective = null;
     private static float Timout = PoiTimeout;
@@ -28,8 +30,47 @@ public class QuestAreaTimer : IModApi
     public void InitMod(Mod _modInstance)
     {
         Debug.Log("Loading mod: " + GetType().ToString());
+        LoadSettings();
         var harmony = new Harmony(GetType().ToString());
         harmony.PatchAll(Assembly.GetExecutingAssembly());
+    }
+
+    /// <summary>
+    /// Loads the settings for the mod.
+    /// </summary>
+    private void LoadSettings()
+    {
+        var settingsPath = Path.GetDirectoryName(Assembly.GetAssembly(typeof(QuestAreaTimer)).Location) + "\\settings.txt";
+        if (File.Exists(settingsPath))
+        {
+            var settings = File.ReadAllLines(settingsPath);
+            foreach (var line in settings)
+            {
+                var parts = line.Split(new[] { '=' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 1 && float.TryParse(parts[1].Trim(), out float value))
+                {
+                    var name = parts[0].Trim();
+                    switch (name)
+                    {
+                        case (nameof(PoiTimeout)):
+                            PoiTimeout = value;
+                            break;
+                        case (nameof(PoiTimeoutHot)):
+                            PoiTimeoutHot = value;
+                            break;
+                        case (nameof(BurriedSuppliesTimeout)):
+                            BurriedSuppliesTimeout = value;
+                            break;
+                        case (nameof(BurriedSuppliesTimeoutHot)):
+                            BurriedSuppliesTimeoutHot = value;
+                            break;
+                        case (nameof(PoiOutZoneMultiplier)):
+                            PoiOutZoneMultiplier = value;
+                            break;
+                    }
+                }
+            }
+        }
     }
     
     /// <summary>
@@ -103,7 +144,7 @@ public class QuestAreaTimer : IModApi
         {
             if (properties.Values.ContainsKey(ObjectivePOIStayWithin.PropRadius))
             {
-                ___offset /= 4;
+                ___offset *= PoiOutZoneMultiplier;
             }
         }
     }
@@ -132,8 +173,8 @@ public class QuestAreaTimer : IModApi
                 if (isCorrectState && LeaveTime == null && Objective.ObjectiveState == BaseObjective.ObjectiveStates.Failed)
                 {
                     var isPoiObjective = calledClass == nameof(ObjectivePOIStayWithin);
-                    Timout = isPoiObjective ? PoiTimeout : NoPoiTimeout;
-                    TimoutHot = isPoiObjective ? PoiTimeoutHot : NoPoiTimeoutHot;
+                    Timout = isPoiObjective ? PoiTimeout : BurriedSuppliesTimeout;
+                    TimoutHot = isPoiObjective ? PoiTimeoutHot : BurriedSuppliesTimeoutHot;
                     SetLeaveTime();
                     CreateRefreshTimer(90, () =>
                     {
