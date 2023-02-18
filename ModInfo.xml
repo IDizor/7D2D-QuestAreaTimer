@@ -2,9 +2,9 @@
 <xml>
 	<ModInfo>
 		<Name value="QuestAreaTimer" />
-		<Description value="When player leaves the quest area - creates a return-timer instead of an instant quest failure." />
+		<Description value="Displays a return-timer when player leaves the quest area." />
 		<Author value="Dizor" />
-    <Website value="https://github.com/IDizor/7D2D-QuestAreaTimer" />
-		<Version value="1.0" compat="A20"/>
+		<Website value="https://github.com/IDizor/7D2D-QuestAreaTimer" />
+		<Version value="1.2" compat="A20"/>
 	</ModInfo>
 </xml>
