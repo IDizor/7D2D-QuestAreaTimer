@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xml>
+	<Name value="Dizor_QuestAreaTimer" />
+	<DisplayName value="QuestAreaTimer" />
+	<Description value="Displays a return-timer when player leaves the quest area." />
+	<Author value="Dizor" />
+	<Website value="https://github.com/IDizor/7D2D-QuestAreaTimer" />
+	<Version value="1.3" compat="A21"/>
+</xml>

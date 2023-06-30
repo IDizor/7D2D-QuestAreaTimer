@@ -1,0 +1,5 @@
+PoiTimeout = 10.05
+PoiTimeoutHot = 5
+BurriedSuppliesTimeout = 10.05
+BurriedSuppliesTimeoutHot = 5
+PoiOutZoneMultiplier = 0.33

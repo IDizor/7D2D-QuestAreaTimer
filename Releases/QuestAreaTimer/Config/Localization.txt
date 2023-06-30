@@ -1,0 +1,2 @@
+Key,File,Type,NoTranslate,english,german,russian,schinese
+lblQuestAreaTimer,UI,Tooltip,Please return to the quest area!,Please return to the quest area!,"Bitte zum Quest-Bereich zurückkehren!","Пожалуйста, вернитесь в зону задания!",请返回任务区域！
