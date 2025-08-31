@@ -1,13 +1,13 @@
-﻿using HarmonyLib;
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using System.Timers;
+using HarmonyLib;
 using UnityEngine;
 using static Quest;
 
 /// <summary>
-/// When player leaves the quest area - creates a return-timer instead of an instant quest failure.
+/// When player leaves the quest area - display a return-timer instead of an instant quest failure.
 /// </summary>
 public class QuestAreaTimer : IModApi
 {
@@ -15,7 +15,7 @@ public class QuestAreaTimer : IModApi
     private static float PoiTimeoutHot = 5f;
     private static float BurriedSuppliesTimeout = 10.05f;
     private static float BurriedSuppliesTimeoutHot = 5f;
-    private static float PoiOutZoneMultiplier = 0.33f;
+    private static float PoiOutZoneMultiplier = 0.5f;
 
     private static BaseObjective Objective = null;
     private static float Timout = PoiTimeout;
@@ -37,7 +37,7 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Loads the settings for the mod.
+    /// Load settings for the mod.
     /// </summary>
     private static void LoadSettings()
     {
@@ -74,14 +74,13 @@ public class QuestAreaTimer : IModApi
         }
     }
     
-    [HarmonyPatch(typeof(ObjectivePOIStayWithin))]
-    [HarmonyPatch(nameof(ObjectivePOIStayWithin.UpdateState_Update))]
+    [HarmonyPatch(typeof(ObjectivePOIStayWithin), nameof(ObjectivePOIStayWithin.UpdateState_Update))]
     public static class ObjectivePOIStayWithin_UpdateState_Update
     {
         /// <summary>
-        /// Keeps current objective in a static variable. It might be used in the <see cref="Quest.MarkFailed"/> method prefix.
+        /// Keep current objective in a static variable. It might be used in the <see cref="Quest.MarkFailed"/> method prefix.
         /// </summary>
-        public static bool Prefix(ObjectivePOIStayWithin __instance)
+        public static void Prefix(ObjectivePOIStayWithin __instance)
         {
             Objective = __instance;
             //Debug.LogWarning($"ObjectivePOIStayWithin.UpdateState_Update : {Objective.statusText} [{Objective.ObjectiveState}]");
@@ -89,7 +88,6 @@ public class QuestAreaTimer : IModApi
             {
                 ClearLeaveTime(__instance.OwnerQuest.OwnerJournal?.OwnerPlayer);
             }
-            return true;
         }
 
         /// <summary>
@@ -105,10 +103,9 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Keeps current objective in a static variable. It might be used in the <see cref="Quest.MarkFailed"/> method prefix.
+    /// Keep current objective in a static variable. It might be used in the <see cref="Quest.MarkFailed"/> method prefix.
     /// </summary>
-    [HarmonyPatch(typeof(ObjectiveStayWithin))]
-    [HarmonyPatch(nameof(ObjectiveStayWithin.Update))]
+    [HarmonyPatch(typeof(ObjectiveStayWithin), nameof(ObjectiveStayWithin.Update))]
     public static class ObjectiveStayWithin_Update
     {
         public static bool Prefix(ObjectiveStayWithin __instance)
@@ -124,10 +121,9 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Shrinks allowed area outside the POI.
+    /// Shrink allowed area outside the POI.
     /// </summary>
-    [HarmonyPatch(typeof(ObjectivePOIStayWithin))]
-    [HarmonyPatch(nameof(ObjectivePOIStayWithin.ParseProperties))]
+    [HarmonyPatch(typeof(ObjectivePOIStayWithin), nameof(ObjectivePOIStayWithin.ParseProperties))]
     public static class ObjectivePOIStayWithin_ParseProperties
     {
         public static void Postfix(DynamicProperties properties, ref float ___offset)
@@ -140,10 +136,9 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Creates a return-to-the-quest-area-timer instead of an instant quest failure.
+    /// Create a return-to-the-quest-area-timer instead of an instant quest failure.
     /// </summary>
-    [HarmonyPatch(typeof(Quest))]
-    [HarmonyPatch(nameof(Quest.CloseQuest))]
+    [HarmonyPatch(typeof(Quest), nameof(Quest.CloseQuest))]
     public static class Quest_CloseQuest
     {
         public static bool Prefix(Quest __instance, QuestState finalState)
@@ -164,7 +159,7 @@ public class QuestAreaTimer : IModApi
                         var isPoiObjective = calledClass == nameof(ObjectivePOIStayWithin);
                         Timout = isPoiObjective ? PoiTimeout : BurriedSuppliesTimeout;
                         TimoutHot = isPoiObjective ? PoiTimeoutHot : BurriedSuppliesTimeoutHot;
-                        SetLeaveTime();
+                        LeaveTime = Time.time;
                         CreateRefreshTimer(90, () =>
                         {
                             if (LeaveTime == null)
@@ -197,35 +192,34 @@ public class QuestAreaTimer : IModApi
     /// <summary>
     /// Binding values for UI.
     /// </summary>
-    [HarmonyPatch(typeof(XUiC_QuestTrackerWindow))]
-    [HarmonyPatch(nameof(XUiC_QuestTrackerWindow.GetBindingValue))]
-    public static class XUiC_QuestTrackerWindow_GetBindingValue
+    [HarmonyPatch(typeof(XUiController), nameof(XUiController.GetBindingValue))]
+    public static class XUiController_GetBindingValue
     {
         private const string DefaultColor = "255,255,0";
         private const string HotColor = "255,30,30";
         private static string TimeColor = DefaultColor;
         private static float TimeLeft = 0;
 
-        public static bool Prefix(ref string value, string bindingName, ref bool __result)
+        public static bool Prefix(XUiController __instance, ref string _value, string _bindingName, ref bool __result)
         {
-            if (bindingName != null)
+            if (__instance is XUiC_QuestTrackerWindow && _bindingName != null)
             {
-                if (bindingName == "staywithinwarning")
+                if (_bindingName == "staywithinwarning")
                 {
-                    value = (LeaveTime.HasValue && TimeLeft > 0).ToString();
+                    _value = (LeaveTime.HasValue && TimeLeft > 0).ToString();
                     __result = true;
                     return false;
                 }
-                else if (bindingName == "staywithintimeleft")
+                else if (_bindingName == "staywithintimeleft")
                 {
-                    value = "";
+                    _value = "";
 
                     if (LeaveTime.HasValue)
                     {
                         var hadTime = TimeLeft > 0;
                         TimeLeft = Math.Max(Timout - (Time.time - LeaveTime.Value), 0);
                         TimeColor = TimeLeft > TimoutHot ? DefaultColor : HotColor;
-                        value = TimeLeft.ToString("0.0");
+                        _value = TimeLeft.ToString("0.0");
 
                         if (hadTime && TimeLeft == 0 && Objective != null && Objective is ObjectivePOIStayWithin objectiveStayWithin)
                         {
@@ -236,15 +230,15 @@ public class QuestAreaTimer : IModApi
                     __result = true;
                     return false;
                 }
-                else if (bindingName == "staywithintimecolor")
+                else if (_bindingName == "staywithintimecolor")
                 {
                     if (LeaveTime.HasValue)
                     {
-                        value = TimeColor;
+                        _value = TimeColor;
                     }
                     else
                     {
-                        value = DefaultColor;
+                        _value = DefaultColor;
                     }
 
                     __result = true;
@@ -257,7 +251,7 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Forces UI to update binded values.
+    /// Force UI to update binded values.
     /// </summary>
     private static void UpdateUI(EntityPlayerLocal player)
     {
@@ -271,15 +265,7 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Puts current game time to the static variable.
-    /// </summary>
-    private static void SetLeaveTime()
-    {
-        LeaveTime = Time.time;
-    }
-
-    /// <summary>
-    /// Clears leave time static variable.
+    /// Clear leave time static variable.
     /// </summary>
     private static void ClearLeaveTime(EntityPlayerLocal player)
     {
@@ -296,7 +282,7 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Creates a new timer to refresh UI.
+    /// Create new timer to refresh UI.
     /// </summary>
     private static void CreateRefreshTimer(int interval, Action onTimer)
     {
@@ -307,7 +293,7 @@ public class QuestAreaTimer : IModApi
     }
 
     /// <summary>
-    /// Stops and disposes the refresh UI timer.
+    /// Stop and dispose the refresh UI timer.
     /// </summary>
     private static void KillRefreshTimer()
     {
