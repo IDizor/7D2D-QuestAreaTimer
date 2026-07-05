@@ -1,5 +1,5 @@
 <dizor>
-	<append xpath="/xui/ruleset[@name='default']/window_group[@name='toolbelt']">
+	<append xpath="/xui/window_group[@name='toolbelt']">
 		<window name="QuestAreaTimer" anchor="CenterCenter" />
 	</append>
 </dizor>

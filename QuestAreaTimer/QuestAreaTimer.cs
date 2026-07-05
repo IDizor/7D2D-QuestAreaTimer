@@ -31,7 +31,7 @@ public class QuestAreaTimer : IModApi
     public void InitMod(Mod _modInstance)
     {
         Debug.Log("Loading mod: " + GetType().ToString());
-        LoadSettings();
+        LoadSettings(Path.GetFullPath(_modInstance.Path));
         var harmony = new Harmony(GetType().ToString());
         harmony.PatchAll(Assembly.GetExecutingAssembly());
     }
@@ -39,9 +39,9 @@ public class QuestAreaTimer : IModApi
     /// <summary>
     /// Load settings for the mod.
     /// </summary>
-    private static void LoadSettings()
+    private static void LoadSettings(string modFolder)
     {
-        var settingsPath = Path.GetDirectoryName(Assembly.GetAssembly(typeof(QuestAreaTimer)).Location) + "\\settings.txt";
+        var settingsPath = Path.Combine(modFolder, "settings.txt");
         if (File.Exists(settingsPath))
         {
             var settings = File.ReadAllLines(settingsPath);

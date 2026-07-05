@@ -1,7 +1,7 @@
 <dizor>
 	<append xpath="/windows">   
-		<window name="QuestAreaTimer" width="600" height="200" pos="0,0" anchor="CenterTop" controller="QuestTrackerWindow" visible="{staywithinwarning}" depth="-20">
-			<!-- need to keep this grid to have controller operable -->
+		<window name="QuestAreaTimer" width="600" height="200" pos="0,60" anchor="CenterCenter" controller="QuestTrackerWindow" visible="{staywithinwarning}" depth="-20">
+			<!-- need to keep this grid to have controller operable, without NREs -->
 			<grid name="objectiveList" rows="8" cols="1" pos="9000,-44" cell_width="300" cell_height="26" repeat_content="true" arrangement="vertical" controller="QuestTrackerObjectiveList"
 				complete_icon="ui_game_symbol_check" incomplete_icon="ui_game_symbol_x" complete_color="[green]"  >
 				<quest_objective_tracker_entry />
